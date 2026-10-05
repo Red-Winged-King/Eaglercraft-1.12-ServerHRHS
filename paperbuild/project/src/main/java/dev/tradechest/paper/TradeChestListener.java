@@ -27,7 +27,17 @@ public final class TradeChestListener implements Listener {
     public void onPlace(BlockPlaceEvent event){if(!chestService.isTradeChestItem(event.getItemInHand()))return;try{chestService.place(event.getBlockPlaced(),event.getPlayer().getUniqueId());plugin.requestImmediateProcessing(ChestKey.of(event.getBlockPlaced()));}catch(SQLException|RuntimeException ex){event.setCancelled(true);plugin.getLogger().log(Level.SEVERE,"Could not place Trade Chest",ex);}}
 
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
-    public void onInteract(PlayerInteractEvent event){if(event.getHand()!=EquipmentSlot.HAND||event.getClickedBlock()==null)return;Block block=event.getClickedBlock();if(!chestService.isMarkedTradeChest(block))return;TradeChestRecord record=chestService.getOrRecoverMarked(block);if(record==null)return;event.setCancelled(true);event.getPlayer().openInventory(record.inventory());}
+    public void onInteract(PlayerInteractEvent event){
+        if(event.getClickedBlock()==null)return;
+        Block block=event.getClickedBlock();
+        if(!chestService.isMarkedTradeChest(block))return;
+        // Cancel both hands so the physical barrel mirror can never be opened.
+        event.setCancelled(true);
+        if(event.getHand()!=EquipmentSlot.HAND)return;
+        TradeChestRecord record=chestService.getOrRecoverMarked(block);
+        if(record==null)return;
+        event.getPlayer().openInventory(record.inventory());
+    }
 
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
     public void onBreak(BlockBreakEvent event){Block block=event.getBlock();if(!chestService.isMarkedTradeChest(block))return;event.setCancelled(true);event.setDropItems(false);TradeChestRecord record=chestService.getOrRecoverMarked(block);if(record!=null&&!chestService.breakAndDrop(record.key(),true))event.getPlayer().sendMessage("Trade Chest could not be safely removed; check the server log.");}
