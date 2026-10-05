@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '25'
@@ -18,9 +18,11 @@ jobs:
       - name: Restore project
         shell: bash
         run: |
-          mkdir tc
-          base64 -d tradechest-build/project.zip.b64 > tc/project.zip
+          mkdir -p tc
+          cat tradechest-build/parts/* > tc/project.zip.b64
+          base64 -d tc/project.zip.b64 > tc/project.zip
           unzip -q tc/project.zip -d tc
+          test -f tc/trade-chest-fabric-26.2/build.gradle
       - name: Build
         working-directory: tc/trade-chest-fabric-26.2
         run: gradle build --stacktrace
