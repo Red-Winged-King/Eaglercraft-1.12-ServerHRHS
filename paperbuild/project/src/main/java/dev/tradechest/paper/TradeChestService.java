@@ -75,7 +75,7 @@ public final class TradeChestService {
     private boolean recoverRecord(TradeChestRecord record,boolean removeMarkedBlock){
         World world=Bukkit.getWorld(record.key().worldId());if(world==null){plugin.getLogger().warning("Cannot recover Trade Chest yet because world is not loaded: "+record.key().shortString());return false;}
         try{storage.delete(record.key());}catch(SQLException ex){plugin.getLogger().log(Level.SEVERE,"Refusing to drop/remove Trade Chest because SQLite delete failed: "+record.key().shortString(),ex);return false;}
-        records.remove(record.key());Location dropAt=record.key().center(world);if(removeMarkedBlock){Block block=world.getBlockAt(record.key().x(),record.key().y(),record.key().z());if(isMarkedTradeChest(block))block.setType(Material.AIR,false);}
+        records.remove(record.key());Location dropAt=record.key().center(world);if(removeMarkedBlock){Block block=world.getBlockAt(record.key().x(),record.key().y(),record.key().z());if(isMarkedTradeChest(block)){if(block.getState() instanceof Barrel barrel)barrel.getInventory().clear();block.setType(Material.AIR,false);}}
         world.dropItemNaturally(dropAt,createTradeChestItem(1));for(ItemStack stack:record.snapshot())if(stack!=null&&!stack.isEmpty())world.dropItemNaturally(dropAt,stack.clone());return true;
     }
     public UUID readBlockChestId(Block block){if(!(block.getState() instanceof Barrel barrel))return null;return readUuid(barrel.getPersistentDataContainer(),blockChestId,null);}
