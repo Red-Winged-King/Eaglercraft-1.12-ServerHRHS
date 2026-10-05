@@ -1,0 +1,136 @@
+name: Paper TradeChest Final macOS Verification
+
+on:
+  push:
+    branches: [tradechest-build-26.2]
+  workflow_dispatch:
+
+jobs:
+  final-verify:
+    runs-on: macos-15
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.7.1'
+
+      - name: Compile production JAR
+        working-directory: paperbuild/project
+        run: gradle clean build --stacktrace
+
+      - name: Download stable Paper 26.2
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p paperbuild/final-smoke/plugins
+          cp paperbuild/project/build/libs/TradeChest-2.0.0.jar paperbuild/final-smoke/plugins/TradeChest-2.0.0.jar
+          USER_AGENT='TradeChest-CI/2.0'
+          curl -fsSL -H "User-Agent: $USER_AGENT" https://fill.papermc.io/v3/projects/paper/versions/26.2/builds > paperbuild/final-smoke/builds.json
+          PAPER_URL="$(python3 - <<'PY'
+          import json
+          d=json.load(open('paperbuild/final-smoke/builds.json'))
+          stable=next(x for x in d if x.get('channel')=='STABLE')
+          print(stable['downloads']['server:default']['url'])
+          print(stable['id'], file=open('paperbuild/final-smoke/paper-build.txt','w'))
+          PY
+          )"
+          curl -fL -H "User-Agent: $USER_AGENT" -o paperbuild/final-smoke/paper.jar "$PAPER_URL"
+
+      - name: First Paper start - full live integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd paperbuild/final-smoke
+          printf 'eula=true\n' > eula.txt
+          cat > server.properties <<'EOF'
+          online-mode=false
+          server-port=25569
+          spawn-protection=0
+          view-distance=4
+          simulation-distance=4
+          max-players=2
+          motd=TradeChest Final CI
+          EOF
+          rm -f console
+          mkfifo console
+          (java -Xms1G -Xmx1G -jar paper.jar --nogui < console > first.log 2>&1) &
+          PID=$!
+          exec 3>console
+          READY=0
+          for i in $(seq 1 180); do
+            if grep -q 'Done (' first.log 2>/dev/null; then READY=1; break; fi
+            if ! kill -0 "$PID" 2>/dev/null; then break; fi
+            sleep 1
+          done
+          test "$READY" -eq 1
+          echo 'tradechest selftest full' >&3
+          PASS=0
+          for i in $(seq 1 60); do
+            if grep -q 'TradeChest self-test: PASS' first.log 2>/dev/null; then PASS=1; break; fi
+            if grep -q 'TradeChest self-test: FAIL' first.log 2>/dev/null; then break; fi
+            sleep 1
+          done
+          test "$PASS" -eq 1
+          echo 'tradechest selftest prepare-restart' >&3
+          PREP=0
+          for i in $(seq 1 30); do
+            if grep -q 'TradeChest self-test prepare-restart: PASS' first.log 2>/dev/null; then PREP=1; break; fi
+            if grep -q 'TradeChest self-test prepare-restart: FAIL' first.log 2>/dev/null; then break; fi
+            sleep 1
+          done
+          test "$PREP" -eq 1
+          echo 'stop' >&3
+          exec 3>&-
+          wait "$PID"
+          cat first.log
+
+      - name: Second Paper start - restart persistence
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd paperbuild/final-smoke
+          rm -f console
+          mkfifo console
+          (java -Xms1G -Xmx1G -jar paper.jar --nogui < console > second.log 2>&1) &
+          PID=$!
+          exec 3>console
+          READY=0
+          for i in $(seq 1 180); do
+            if grep -q 'Done (' second.log 2>/dev/null; then READY=1; break; fi
+            if ! kill -0 "$PID" 2>/dev/null; then break; fi
+            sleep 1
+          done
+          test "$READY" -eq 1
+          grep -q 'TradeChest enabled: 1 persistent chest(s)' second.log
+          echo 'tradechest selftest verify-restart' >&3
+          PASS=0
+          for i in $(seq 1 30); do
+            if grep -q 'TradeChest self-test verify-restart: PASS' second.log 2>/dev/null; then PASS=1; break; fi
+            if grep -q 'TradeChest self-test verify-restart: FAIL' second.log 2>/dev/null; then break; fi
+            sleep 1
+          done
+          echo 'stop' >&3
+          exec 3>&-
+          wait "$PID"
+          cat second.log
+          test "$PASS" -eq 1
+          echo 'FINAL TRADECHEST VERIFICATION PASSED'
+
+      - name: Upload final artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: TradeChest-Paper-26.2-FINAL
+          if-no-files-found: error
+          path: |
+            paperbuild/project/build/libs/TradeChest-2.0.0.jar
+            paperbuild/project/build/libs/TradeChest-2.0.0-sources.jar
+            paperbuild/final-smoke/first.log
+            paperbuild/final-smoke/second.log
+            paperbuild/final-smoke/paper-build.txt
