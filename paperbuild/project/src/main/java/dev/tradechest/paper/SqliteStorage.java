@@ -16,10 +16,10 @@ public final class SqliteStorage implements AutoCloseable {
         connection=DriverManager.getConnection("jdbc:sqlite:"+databaseFile.getAbsolutePath());
         try(Statement statement=connection.createStatement()){
             statement.execute("PRAGMA journal_mode=WAL");statement.execute("PRAGMA synchronous=FULL");statement.execute("PRAGMA foreign_keys=ON");statement.execute("PRAGMA busy_timeout=5000");
-            statement.executeUpdate("""CREATE TABLE IF NOT EXISTS trade_chests (
-world_uuid TEXT NOT NULL,x INTEGER NOT NULL,y INTEGER NOT NULL,z INTEGER NOT NULL,
-chest_id TEXT NOT NULL,owner_uuid TEXT,items BLOB NOT NULL,updated_at INTEGER NOT NULL,
-PRIMARY KEY (world_uuid,x,y,z))""");
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS trade_chests (" +
+"world_uuid TEXT NOT NULL,x INTEGER NOT NULL,y INTEGER NOT NULL,z INTEGER NOT NULL," +
+"chest_id TEXT NOT NULL,owner_uuid TEXT,items BLOB NOT NULL,updated_at INTEGER NOT NULL," +
+"PRIMARY KEY (world_uuid,x,y,z))");
         }
     }
     public synchronized List<TradeChestRecord> loadAll() throws SQLException {
@@ -38,8 +38,9 @@ PRIMARY KEY (world_uuid,x,y,z))""");
     public synchronized void delete(ChestKey key)throws SQLException{ensureOpen();try(PreparedStatement ps=connection.prepareStatement("DELETE FROM trade_chests WHERE world_uuid=? AND x=? AND y=? AND z=?")){bindKey(ps,key);ps.executeUpdate();}}
     private void saveInternal(TradeChestRecord record)throws SQLException{
         byte[] bytes=ItemStack.serializeItemsAsBytes(record.snapshot());
-        try(PreparedStatement ps=connection.prepareStatement("""INSERT INTO trade_chests(world_uuid,x,y,z,chest_id,owner_uuid,items,updated_at)
-VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(world_uuid,x,y,z) DO UPDATE SET chest_id=excluded.chest_id,owner_uuid=excluded.owner_uuid,items=excluded.items,updated_at=excluded.updated_at""")){
+        try(PreparedStatement ps=connection.prepareStatement("INSERT INTO trade_chests(world_uuid,x,y,z,chest_id,owner_uuid,items,updated_at) " +
+"VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(world_uuid,x,y,z) DO UPDATE SET " +
+"chest_id=excluded.chest_id,owner_uuid=excluded.owner_uuid,items=excluded.items,updated_at=excluded.updated_at")){
             bindKey(ps,record.key());ps.setString(5,record.chestId().toString());if(record.ownerId()==null)ps.setNull(6,Types.VARCHAR);else ps.setString(6,record.ownerId().toString());ps.setBytes(7,bytes);ps.setLong(8,Instant.now().toEpochMilli());ps.executeUpdate();
         }
     }
