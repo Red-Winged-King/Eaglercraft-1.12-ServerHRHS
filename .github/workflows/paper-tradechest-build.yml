@@ -1,0 +1,96 @@
+name: Paper TradeChest Build Test
+
+on:
+  push:
+    branches: [tradechest-build-26.2]
+  workflow_dispatch:
+
+jobs:
+  build-test-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.7.1'
+
+      - name: Compile and run unit tests
+        working-directory: paperbuild/project
+        run: gradle clean test build --stacktrace
+
+      - name: Download latest stable Paper 26.2
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p paperbuild/smoke/plugins
+          cp paperbuild/project/build/libs/TradeChest-2.0.0.jar paperbuild/smoke/plugins/TradeChest-2.0.0.jar
+          USER_AGENT='TradeChest-CI/2.0 (https://github.com/Red-Winged-King/Eaglercraft-1.12-ServerHRHS)'
+          BUILDS="$(curl -fsSL -H "User-Agent: $USER_AGENT" https://fill.papermc.io/v3/projects/paper/versions/26.2/builds)"
+          BUILD_ID="$(printf '%s' "$BUILDS" | jq -r 'first(.[] | select(.channel == "STABLE") | .id) // empty')"
+          PAPER_URL="$(printf '%s' "$BUILDS" | jq -r 'first(.[] | select(.channel == "STABLE") | .downloads."server:default".url) // empty')"
+          test -n "$BUILD_ID"
+          test -n "$PAPER_URL"
+          printf 'Paper 26.2 stable build %s\n' "$BUILD_ID" | tee paperbuild/smoke/paper-build.txt
+          curl -fL -H "User-Agent: $USER_AGENT" -o paperbuild/smoke/paper.jar "$PAPER_URL"
+
+      - name: Start clean Paper 26.2 server
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd paperbuild/smoke
+          printf 'eula=true\n' > eula.txt
+          cat > server.properties <<'EOF'
+          online-mode=false
+          server-port=25568
+          spawn-protection=0
+          view-distance=4
+          simulation-distance=4
+          max-players=2
+          motd=TradeChest CI
+          EOF
+          rm -f console
+          mkfifo console
+          (java -Xms1G -Xmx1G -jar paper.jar --nogui < console > startup.log 2>&1) &
+          PID=$!
+          exec 3>console
+          READY=0
+          for i in $(seq 1 150); do
+            if grep -q 'Done (' startup.log 2>/dev/null; then
+              READY=1
+              break
+            fi
+            if ! kill -0 "$PID" 2>/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          cat startup.log
+          if [ "$READY" -ne 1 ]; then
+            echo 'Paper did not reach ready state.'
+            kill "$PID" 2>/dev/null || true
+            exit 1
+          fi
+          grep -q 'TradeChest enabled:' startup.log
+          echo 'stop' >&3
+          exec 3>&-
+          wait "$PID"
+          echo 'Dedicated Paper 26.2 smoke test passed.'
+
+      - name: Upload production artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: TradeChest-Paper-26.2-production
+          if-no-files-found: error
+          path: |
+            paperbuild/project/build/libs/TradeChest-2.0.0.jar
+            paperbuild/project/build/test-results/test/
+            paperbuild/project/build/reports/tests/test/
+            paperbuild/smoke/startup.log
+            paperbuild/smoke/paper-build.txt
