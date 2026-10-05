@@ -460,7 +460,7 @@ public final class RuntimeSelfTest {
 
     private static World requireWorld() {
         World world = Bukkit.getWorlds().stream().findFirst().orElseThrow();
-        world.getChunkAt(restartBlock(world).getChunk());
+        world.getChunkAt(restartBlock(world));
         return world;
     }
 
@@ -540,7 +540,7 @@ public final class RuntimeSelfTest {
             int y = Math.max(world.getMinHeight() + 8,
                     Math.min(world.getMaxHeight() - 8, world.getHighestBlockYAt(x, z) + 4));
             this.chestBlock = world.getBlockAt(x, y, z);
-            world.getChunkAt(chestBlock.getChunk());
+            world.getChunkAt(chestBlock);
             clearNearbyItems(chestBlock.getLocation());
             cleanupExistingAt(plugin, chestBlock);
             for (BlockFace face : List.of(BlockFace.WEST, BlockFace.DOWN)) {
