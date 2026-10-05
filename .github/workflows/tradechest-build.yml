@@ -24,6 +24,7 @@ jobs:
           unzip -q tc/project.zip -d tc
           test -f tc/trade-chest-fabric-26.2/build.gradle
           sed -i 's/modImplementation "eu.pb4:polymer-core:/implementation "eu.pb4:polymer-core:/' tc/trade-chest-fabric-26.2/build.gradle
+          sed -i 's/method = "notifyTrade", at = @At("TAIL")/method = "rewardTradeXp", at = @At("TAIL")/' tc/trade-chest-fabric-26.2/src/main/java/dev/tradechest/mixin/VillagerUnlimitedTradingMixin.java
       - name: Build
         working-directory: tc/trade-chest-fabric-26.2
         run: gradle build --stacktrace
