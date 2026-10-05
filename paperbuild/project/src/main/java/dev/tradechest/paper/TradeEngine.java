@@ -41,12 +41,18 @@ public final class TradeEngine {
             for (Villager villager : villagers) {
                 if (!isEligible(villager, center, config.tradeRadius())) continue;
                 List<MerchantRecipe> recipes = villager.getRecipes();
-                for (MerchantRecipe recipe : recipes) {
+                for (int recipeIndex = 0; recipeIndex < recipes.size(); recipeIndex++) {
+                    MerchantRecipe recipe = recipes.get(recipeIndex);
                     if (config.onlyTradesThatOutputEmerald() && recipe.getResult().getType() != Material.EMERALD) continue;
                     if (!config.infiniteVillagerStock() && recipe.getUses() >= recipe.getMaxUses()) continue;
                     PricingService.EffectiveTrade trade = PricingService.effectiveTrade(villager, recipe, record.ownerId());
                     if (trade == null) continue;
                     if (tryApply(work, trade)) {
+                        if (!config.infiniteVillagerStock()) {
+                            MerchantRecipe used = new MerchantRecipe(recipe);
+                            used.setUses(Math.min(used.getMaxUses(), used.getUses() + 1));
+                            villager.setRecipe(recipeIndex, used);
+                        }
                         completed++;
                         madeOne = true;
                         break;
