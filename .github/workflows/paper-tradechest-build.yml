@@ -8,7 +8,7 @@ on:
 jobs:
   build-test-smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -40,7 +40,7 @@ jobs:
           printf 'Paper 26.2 stable build %s\n' "$BUILD_ID" | tee paperbuild/smoke/paper-build.txt
           curl -fL -H "User-Agent: $USER_AGENT" -o paperbuild/smoke/paper.jar "$PAPER_URL"
 
-      - name: Start clean Paper 26.2 server and run runtime tests
+      - name: First clean Paper run - full live integration suite and restart fixture
         shell: bash
         run: |
           set -euo pipefail
@@ -58,41 +58,85 @@ jobs:
 
           rm -f console
           mkfifo console
-          (java -Xms1G -Xmx1G -jar paper.jar --nogui < console > startup.log 2>&1) &
+          (java -Xms1G -Xmx1G -jar paper.jar --nogui < console > startup-first.log 2>&1) &
           PID=$!
           exec 3>console
 
           READY=0
           for i in $(seq 1 150); do
-            if grep -q 'Done (' startup.log 2>/dev/null; then
-              READY=1
-              break
-            fi
-            if ! kill -0 "$PID" 2>/dev/null; then
-              break
-            fi
+            if grep -q 'Done (' startup-first.log 2>/dev/null; then READY=1; break; fi
+            if ! kill -0 "$PID" 2>/dev/null; then break; fi
             sleep 1
           done
-
           if [ "$READY" -ne 1 ]; then
-            cat startup.log
-            echo 'Paper did not reach ready state.'
+            cat startup-first.log
             kill "$PID" 2>/dev/null || true
             exit 1
           fi
 
-          grep -q 'TradeChest enabled:' startup.log
-          echo 'tradechest selftest' >&3
+          grep -q 'TradeChest enabled:' startup-first.log
+          echo 'tradechest selftest full' >&3
+          FULL=0
+          for i in $(seq 1 60); do
+            if grep -q 'TradeChest self-test: PASS' startup-first.log 2>/dev/null; then FULL=1; break; fi
+            if grep -q 'TradeChest self-test: FAIL' startup-first.log 2>/dev/null; then break; fi
+            sleep 1
+          done
+          if [ "$FULL" -ne 1 ]; then
+            cat startup-first.log
+            echo 'Full live TradeChest integration suite failed.'
+            kill "$PID" 2>/dev/null || true
+            exit 1
+          fi
 
-          SELFTEST=0
+          echo 'tradechest selftest prepare-restart' >&3
+          PREP=0
           for i in $(seq 1 30); do
-            if grep -q 'TradeChest self-test: PASS' startup.log 2>/dev/null; then
-              SELFTEST=1
-              break
-            fi
-            if grep -q 'TradeChest self-test: FAIL' startup.log 2>/dev/null; then
-              break
-            fi
+            if grep -q 'TradeChest self-test prepare-restart: PASS' startup-first.log 2>/dev/null; then PREP=1; break; fi
+            if grep -q 'TradeChest self-test prepare-restart: FAIL' startup-first.log 2>/dev/null; then break; fi
+            sleep 1
+          done
+          if [ "$PREP" -ne 1 ]; then
+            cat startup-first.log
+            echo 'Restart fixture setup failed.'
+            kill "$PID" 2>/dev/null || true
+            exit 1
+          fi
+
+          echo 'stop' >&3
+          exec 3>&-
+          wait "$PID"
+          cat startup-first.log
+
+      - name: Second Paper run - verify real restart persistence
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd paperbuild/smoke
+          rm -f console
+          mkfifo console
+          (java -Xms1G -Xmx1G -jar paper.jar --nogui < console > startup-second.log 2>&1) &
+          PID=$!
+          exec 3>console
+
+          READY=0
+          for i in $(seq 1 150); do
+            if grep -q 'Done (' startup-second.log 2>/dev/null; then READY=1; break; fi
+            if ! kill -0 "$PID" 2>/dev/null; then break; fi
+            sleep 1
+          done
+          if [ "$READY" -ne 1 ]; then
+            cat startup-second.log
+            kill "$PID" 2>/dev/null || true
+            exit 1
+          fi
+
+          grep -q 'TradeChest enabled: 1 persistent chest(s)' startup-second.log
+          echo 'tradechest selftest verify-restart' >&3
+          VERIFY=0
+          for i in $(seq 1 30); do
+            if grep -q 'TradeChest self-test verify-restart: PASS' startup-second.log 2>/dev/null; then VERIFY=1; break; fi
+            if grep -q 'TradeChest self-test verify-restart: FAIL' startup-second.log 2>/dev/null; then break; fi
             sleep 1
           done
 
@@ -102,12 +146,12 @@ jobs:
           exec 3>&-
           wait "$PID"
 
-          cat startup.log
-          if [ "$SELFTEST" -ne 1 ]; then
-            echo 'TradeChest runtime self-test did not pass.'
+          cat startup-second.log
+          if [ "$VERIFY" -ne 1 ]; then
+            echo 'Real stop/start persistence verification failed.'
             exit 1
           fi
-          echo 'Dedicated Paper 26.2 smoke/runtime test passed.'
+          echo 'Dedicated Paper 26.2 full integration + restart test passed.'
 
       - name: Upload production artifacts
         uses: actions/upload-artifact@v4
@@ -117,5 +161,6 @@ jobs:
           path: |
             paperbuild/project/build/libs/TradeChest-2.0.0.jar
             paperbuild/project/build/libs/TradeChest-2.0.0-sources.jar
-            paperbuild/smoke/startup.log
+            paperbuild/smoke/startup-first.log
+            paperbuild/smoke/startup-second.log
             paperbuild/smoke/paper-build.txt
