@@ -1,7 +1,5 @@
 name: Trade Chest Build Test
 on:
-  push:
-    branches: [tradechest-build-26.2]
   workflow_dispatch:
 jobs:
   build:
