@@ -468,8 +468,11 @@ public final class RuntimeSelfTest {
         Location spawn = world.getSpawnLocation();
         int x = spawn.getBlockX() + 48;
         int z = spawn.getBlockZ() + 48;
+        // Must not depend on terrain height: placing the test chest itself can
+        // change getHighestBlockYAt(), which would make the second startup look
+        // at a different Y coordinate.
         int y = Math.max(world.getMinHeight() + 8,
-                Math.min(world.getMaxHeight() - 8, world.getHighestBlockYAt(x, z) + 3));
+                Math.min(world.getMaxHeight() - 8, spawn.getBlockY() + 12));
         return world.getBlockAt(x, y, z);
     }
 
