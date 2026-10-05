@@ -94,4 +94,10 @@ public final class TradeChestPlugin extends JavaPlugin {
     public long currentTick() { return tick; }
     public PluginConfig settings() { return settings; }
     public TradeChestService chests() { return chests; }
+
+    // Package-private accessors used only by the in-server diagnostic suite so
+    // tests exercise the exact live service/listener instances.
+    TradeEngine tradeEngineForTests() { return tradeEngine; }
+    HopperService hopperServiceForTests() { return hopperService; }
+    UnlimitedTradeService unlimitedTradesForTests() { return unlimitedTrades; }
 }
