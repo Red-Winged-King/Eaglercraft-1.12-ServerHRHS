@@ -24,7 +24,7 @@ public final class TradeChestCommand implements CommandExecutor, TabCompleter {
             case "give" -> give(sender, args);
             case "reload" -> reload(sender);
             case "status" -> status(sender);
-            case "selftest" -> selftest(sender);
+            case "selftest" -> selftest(sender, args);
             default -> {
                 sender.sendMessage(ChatColor.RED + "Unknown subcommand.");
                 yield true;
@@ -87,17 +87,29 @@ public final class TradeChestCommand implements CommandExecutor, TabCompleter {
         return true;
     }
 
-    private boolean selftest(CommandSender sender) {
+    private boolean selftest(CommandSender sender, String[] args) {
         if (!sender.hasPermission("tradechest.admin")) return deny(sender);
 
-        RuntimeSelfTest.Result result = RuntimeSelfTest.run(plugin);
+        String mode = args.length >= 2 ? args[1].toLowerCase(Locale.ROOT) : "full";
+        RuntimeSelfTest.Result result = switch (mode) {
+            case "full" -> RuntimeSelfTest.run(plugin);
+            case "prepare-restart" -> RuntimeSelfTest.prepareRestart(plugin);
+            case "verify-restart" -> RuntimeSelfTest.verifyRestart(plugin);
+            default -> null;
+        };
+        if (result == null) {
+            sender.sendMessage(ChatColor.RED + "Usage: /tradechest selftest [full|prepare-restart|verify-restart]");
+            return true;
+        }
+
+        String label = "full".equals(mode) ? "TradeChest self-test" : "TradeChest self-test " + mode;
         if (result.passed()) {
-            String message = "TradeChest self-test: PASS (" + result.checks().size() + " checks)";
+            String message = label + ": PASS (" + result.checks().size() + " checks)";
             plugin.getLogger().info(message);
             for (String check : result.checks()) plugin.getLogger().info("  PASS: " + check);
             sender.sendMessage(ChatColor.GREEN + message);
         } else {
-            String message = "TradeChest self-test: FAIL after " + result.checks().size() + " successful checks";
+            String message = label + ": FAIL after " + result.checks().size() + " successful checks";
             plugin.getLogger().severe(message);
             if (result.failure() != null) {
                 plugin.getLogger().log(java.util.logging.Level.SEVERE, "Self-test failure", result.failure());
@@ -123,6 +135,11 @@ public final class TradeChestCommand implements CommandExecutor, TabCompleter {
             String prefix = args[0].toLowerCase(Locale.ROOT);
             choices.removeIf(value -> !value.startsWith(prefix));
             return choices;
+        }
+        if (args.length == 2 && args[0].equalsIgnoreCase("selftest") && sender.hasPermission("tradechest.admin")) {
+            String prefix = args[1].toLowerCase(Locale.ROOT);
+            return List.of("full", "prepare-restart", "verify-restart").stream()
+                    .filter(value -> value.startsWith(prefix)).toList();
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("give") && sender.hasPermission("tradechest.give")) {
             String prefix = args[1].toLowerCase(Locale.ROOT);
