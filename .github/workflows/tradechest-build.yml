@@ -27,6 +27,24 @@ jobs:
       - name: Build
         working-directory: tc/trade-chest-fabric-26.2
         run: gradle build --stacktrace
+      - name: Dedicated server smoke test
+        working-directory: tc/trade-chest-fabric-26.2
+        shell: bash
+        run: |
+          mkdir -p run
+          printf 'eula=true\n' > run/eula.txt
+          printf 'online-mode=false\nserver-port=25567\n' > run/server.properties
+          set +e
+          timeout 120s gradle runServer --stacktrace > server-smoke.log 2>&1
+          status=$?
+          set -e
+          cat server-smoke.log
+          if grep -q "Done (" server-smoke.log; then
+            echo "Dedicated Fabric server reached ready state."
+            exit 0
+          fi
+          echo "Server failed to reach ready state; timeout/status=$status"
+          exit 1
       - name: Upload jar
         uses: actions/upload-artifact@v4
         with:
