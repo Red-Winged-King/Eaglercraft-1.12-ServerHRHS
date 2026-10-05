@@ -1,0 +1,27 @@
+name: TradeChest
+version: '${version}'
+main: dev.tradechest.paper.TradeChestPlugin
+api-version: '26.2'
+author: OpenAI
+description: Persistent automatic villager Trade Chests for Paper 26.2.
+commands:
+  tradechest:
+    description: Trade Chest administration
+    usage: /tradechest <give|reload|status>
+permissions:
+  tradechest.admin:
+    description: Access to all Trade Chest administrator commands
+    default: op
+    children:
+      tradechest.give: true
+      tradechest.reload: true
+      tradechest.status: true
+  tradechest.give:
+    description: Give Trade Chest items
+    default: op
+  tradechest.reload:
+    description: Reload Trade Chest configuration
+    default: op
+  tradechest.status:
+    description: View Trade Chest status
+    default: op

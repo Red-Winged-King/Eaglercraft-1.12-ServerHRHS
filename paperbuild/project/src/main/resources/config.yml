@@ -1,0 +1,9 @@
+# TradeChest configuration. Numeric values outside safe bounds are clamped on load.
+trade-radius: 10
+processing-interval-ticks: 5
+max-trades-per-pass: 64
+infinite-villager-stock: true
+player-unlimited-villager-stock: true
+only-trades-that-output-emerald: true
+affect-wandering-traders: false
+hopper-interval-ticks: 8

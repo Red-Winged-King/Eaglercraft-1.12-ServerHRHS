@@ -1,0 +1,58 @@
+plugins {
+    id 'java'
+}
+
+group = 'dev.tradechest'
+version = '2.0.0'
+
+repositories {
+    mavenCentral()
+    maven {
+        name = 'papermc'
+        url = uri('https://repo.papermc.io/repository/maven-public/')
+    }
+}
+
+dependencies {
+    compileOnly 'io.papermc.paper:paper-api:26.2.build.129-stable'
+    implementation('org.xerial:sqlite-jdbc:3.50.3.0') {
+        exclude group: 'org.slf4j', module: 'slf4j-api'
+    }
+
+    testImplementation 'io.papermc.paper:paper-api:26.2.build.129-stable'
+    testImplementation platform('org.junit:junit-bom:5.12.2')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(25)
+    withSourcesJar()
+}
+
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('plugin.yml') {
+        expand version: project.version
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 25
+    options.encoding = 'UTF-8'
+}
+
+test {
+    useJUnitPlatform()
+}
+
+jar {
+    archiveBaseName = 'TradeChest'
+    archiveClassifier = ''
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+    exclude 'META-INF/*.SF', 'META-INF/*.RSA', 'META-INF/*.DSA'
+}
+
+build.dependsOn jar
