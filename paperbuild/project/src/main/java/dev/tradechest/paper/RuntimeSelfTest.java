@@ -290,7 +290,7 @@ public final class RuntimeSelfTest {
         contents[0] = new ItemStack(Material.STRING, 25);
         check(plugin.chests().commit(record, contents), "live input saved");
 
-        TradeEngine engine = new TradeEngine(plugin, plugin.chests());
+        TradeEngine engine = plugin.tradeEngineForTests();
         int completed = engine.process(record);
         check(completed == 1, "one discounted live villager trade completed");
         check(record.inventory().getItem(0) != null && record.inventory().getItem(0).getAmount() == 5,
@@ -325,7 +325,7 @@ public final class RuntimeSelfTest {
         contents = empty();
         contents[0] = new ItemStack(Material.STRING, 20);
         check(plugin.chests().commit(record, contents), "range fixture saved");
-        check(new TradeEngine(plugin, plugin.chests()).process(record) == 0
+        check(plugin.tradeEngineForTests().process(record) == 0
                         && record.inventory().getItem(0).getAmount() == 20,
                 "out-of-range villager ignored");
         passed.add("trade-radius enforcement");
@@ -345,7 +345,7 @@ public final class RuntimeSelfTest {
 
         record.setContents(empty());
         check(plugin.chests().saveAndMirror(record), "hopper fixture reset");
-        HopperService hoppers = new HopperService(plugin, plugin.chests());
+        HopperService hoppers = plugin.hopperServiceForTests();
         hoppers.tick();
         check(record.inventory().getItem(0) != null && record.inventory().getItem(0).getAmount() == 1,
                 "side hopper inserted into INPUT");
@@ -398,7 +398,7 @@ public final class RuntimeSelfTest {
         MerchantRecipe soldOut = new MerchantRecipe(new ItemStack(Material.EMERALD, 1), 1, 1, true);
         soldOut.addIngredient(new ItemStack(Material.STRING, 21));
         stockVillager.setRecipes(List.of(soldOut));
-        UnlimitedTradeService unlimited = new UnlimitedTradeService(plugin);
+        UnlimitedTradeService unlimited = plugin.unlimitedTradesForTests();
         unlimited.prepareForPlayer(stockVillager);
         MerchantRecipe prepared = stockVillager.getRecipes().getFirst();
         check(prepared.getUses() == 0 && prepared.getMaxUses() >= 1_000_000,
